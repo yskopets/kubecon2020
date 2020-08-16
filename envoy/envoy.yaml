@@ -1,0 +1,118 @@
+admin:
+  access_log_path: "/dev/null"
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 15000
+
+static_resources:
+  listeners:
+  - name: ingress
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 10000
+    filter_chains:
+    - filters:            
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: local_service
+              domains:
+              - "*"
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: mock_service
+          http_filters:
+          - name: envoy.filters.http.wasm
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+              config:
+                configuration: |
+                  GET /api/products
+                  PUT /api/products/{id}
+                root_id: api_validator
+                vm_config:
+                  runtime: "envoy.wasm.runtime.v8"
+                  code:
+                    local:
+                      filename: build/untouched.wasm
+          - name: envoy.filters.http.router
+
+  - name: mock
+    address:
+      socket_address:
+        address: 127.0.0.1
+        port_value: 10001
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: mock
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: mock
+              domains:
+              - "*"
+              routes:
+              - match:
+                  prefix: "/api/products"
+                direct_response:
+                  status: 200
+                  body:
+                    inline_string: |
+                      [
+                        {"name":"sim"}
+                      ]
+              - match:
+                  prefix: "/api/orders"
+                direct_response:
+                  status: 200
+                  body:
+                    inline_string: |
+                      [
+                        {
+                          "user": "me",
+                          "items":[{"product": {"name":"sim"}}]
+                        }
+                      ]
+              - match:
+                  prefix: "/api/users"
+                direct_response:
+                  status: 200
+                  body:
+                    inline_string: |
+                      [
+                        {"name": "me"}
+                      ]
+              - match:
+                  prefix: "/"
+                direct_response:
+                  status: 200
+                  body:
+                    inline_string: "Hi from mock service!\n"
+          http_filters:
+          - name: envoy.filters.http.router
+
+  clusters:
+  - name: mock_service
+    connect_timeout: 0.25s
+    type: static
+    lb_policy: round_robin
+    load_assignment:
+      cluster_name: mock_service
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 127.0.0.1
+                port_value: 10001

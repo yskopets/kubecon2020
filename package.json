@@ -1,0 +1,16 @@
+{
+  "scripts": {
+    "build": "asc assembly/index.ts --target debug --use abort=abort_proc_exit",
+    "asbuild:untouched": "asc assembly/index.ts --target debug --use abort=abort_proc_exit",
+    "asbuild:optimized": "asc assembly/index.ts --target release --use abort=abort_proc_exit",
+    "asbuild": "npm run asbuild:untouched && npm run asbuild:optimized",
+    "test": "node tests"
+  },
+  "dependencies": {
+    "@assemblyscript/loader": "^0.14.6",
+    "@solo-io/proxy-runtime": "yskopets/proxy-runtime#feature/assemblyscript-0-14"
+  },
+  "devDependencies": {
+    "assemblyscript": "^0.14.6"
+  }
+}
